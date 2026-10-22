@@ -111,6 +111,10 @@ jobs:
           ls -la release
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # 7-Zip picks its ARM64 branch filter for arm64 binaries, which the extractor inside the
+          # NSIS installer cannot decode: the install ends up with no .exe or .dll files. Force the
+          # x86 BCJ filter, which it can (it only costs a little compression on these files).
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
           # Public Entra client ID, same as upstream's release workflow. Not a secret.
           VITE_MICROSOFT_CLIENT_ID: b1c13541-0b78-4c60-8ca4-308aa9b23bd0
 
