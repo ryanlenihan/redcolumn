@@ -108,7 +108,7 @@ jobs:
               '-c.nsis.artifactName=redcolumn-Setup-arm64.${ext}'
           } > "$RUNNER_TEMP/build.log" 2>&1 || fail
           tail -n 40 "$RUNNER_TEMP/build.log"
-          ls -la apps/desktop/release
+          ls -la release
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           # Public Entra client ID, same as upstream's release workflow. Not a secret.
