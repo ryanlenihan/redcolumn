@@ -107,7 +107,7 @@ jobs:
           run pnpm exec tsc -p .
           # The Node download script unpacks a .zip with `tar`, which has to be Windows' own
           # bsdtar; in this bash shell `tar` would be Git's GNU tar, which cannot read zips.
-          run pwsh -NoProfile -Command 'node scripts/fetch-assistant-node.mjs --arch=arm64; exit $LASTEXITCODE'
+          run pwsh -NoProfile -Command '$env:PATH = "$env:SystemRoot\System32;$env:PATH"; node scripts/fetch-assistant-node.mjs --arch=arm64; exit $LASTEXITCODE'
           run pnpm exec electron-builder --win --arm64 --publish never \
             -c.publish.provider=github -c.publish.owner="$owner" -c.publish.repo="$repo" \
             '-c.nsis.artifactName=redcolumn-Setup-arm64.${ext}'
