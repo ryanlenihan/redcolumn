@@ -98,14 +98,16 @@ jobs:
           log="$RUNNER_TEMP/build.log"
           run() {
             echo "+ $*" | tee -a "$log"
-            "$@" >> "$log" 2>&1 || { echo "::error::failed: $*"; tail -n 25 "$log" | sed 's/^/::error::/'; exit 1; }
+            "$@" >> "$log" 2>&1 || { echo "::error::failed: $*"; tail -n 9 "$log" | sed 's/^/::error::/'; exit 1; }
           }
           owner="${GITHUB_REPOSITORY%%/*}"
           repo="${GITHUB_REPOSITORY##*/}"
           run pnpm --filter @nb/web build
           cd apps/desktop
           run pnpm exec tsc -p .
-          run node scripts/fetch-assistant-node.mjs --arch=arm64
+          # The Node download script unpacks a .zip with `tar`, which has to be Windows' own
+          # bsdtar; in this bash shell `tar` would be Git's GNU tar, which cannot read zips.
+          run pwsh -NoProfile -Command 'node scripts/fetch-assistant-node.mjs --arch=arm64; exit $LASTEXITCODE'
           run pnpm exec electron-builder --win --arm64 --publish never \
             -c.publish.provider=github -c.publish.owner="$owner" -c.publish.repo="$repo" \
             '-c.nsis.artifactName=redcolumn-Setup-arm64.${ext}'
