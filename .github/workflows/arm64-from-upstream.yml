@@ -90,24 +90,25 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Each command's output goes to the log; if one fails, its last lines become annotations
+      # (visible on the run page) and the job stops.
       - name: Package installer
         shell: bash
         run: |
+          log="$RUNNER_TEMP/build.log"
+          run() {
+            echo "+ $*" | tee -a "$log"
+            "$@" >> "$log" 2>&1 || { echo "::error::failed: $*"; tail -n 25 "$log" | sed 's/^/::error::/'; exit 1; }
+          }
           owner="${GITHUB_REPOSITORY%%/*}"
           repo="${GITHUB_REPOSITORY##*/}"
-          # On failure, the last lines of output become annotations, which show on the run page.
-          fail() { tail -n 25 "$RUNNER_TEMP/build.log" | sed 's/^/::error::/'; exit 1; }
-          {
-            set -e
-            pnpm --filter @nb/web build
-            cd apps/desktop
-            pnpm exec tsc -p .
-            node scripts/fetch-assistant-node.mjs --arch=arm64
-            pnpm exec electron-builder --win --arm64 --publish never \
-              -c.publish.provider=github -c.publish.owner="$owner" -c.publish.repo="$repo" \
-              '-c.nsis.artifactName=redcolumn-Setup-arm64.${ext}'
-          } > "$RUNNER_TEMP/build.log" 2>&1 || fail
-          tail -n 40 "$RUNNER_TEMP/build.log"
+          run pnpm --filter @nb/web build
+          cd apps/desktop
+          run pnpm exec tsc -p .
+          run node scripts/fetch-assistant-node.mjs --arch=arm64
+          run pnpm exec electron-builder --win --arm64 --publish never \
+            -c.publish.provider=github -c.publish.owner="$owner" -c.publish.repo="$repo" \
+            '-c.nsis.artifactName=redcolumn-Setup-arm64.${ext}'
           ls -la release
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -117,6 +118,30 @@ jobs:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           # Public Entra client ID, same as upstream's release workflow. Not a secret.
           VITE_MICROSOFT_CLIENT_ID: b1c13541-0b78-4c60-8ca4-308aa9b23bd0
+
+      # Nothing is published unless the packaged app has its executable, the asar and the
+      # assistant's Node, all arm64.
+      - name: Verify the packaged app
+        shell: bash
+        working-directory: apps/desktop/release/win-arm64-unpacked
+        run: |
+          node -e '
+            const fs = require("fs");
+            const want = ["redcolumn.exe", "ffmpeg.dll", "resources/assistant/node.exe"];
+            let bad = 0;
+            for (const f of want) {
+              if (!fs.existsSync(f)) { console.log(`::error::missing ${f}`); bad++; continue; }
+              const b = fs.readFileSync(f).subarray(0, 4096);
+              const m = b.readUInt16LE(b.readUInt32LE(0x3c) + 4);
+              const ok = m === 0xaa64;
+              console.log(`${f}: machine 0x${m.toString(16)} ${ok ? "arm64" : "NOT arm64"}`);
+              if (!ok) { console.log(`::error::${f} is not arm64`); bad++; }
+            }
+            const asar = fs.statSync("resources/app.asar").size;
+            console.log(`resources/app.asar: ${asar} bytes`);
+            if (asar < 100000) { console.log("::error::app.asar is too small"); bad++; }
+            process.exit(bad ? 1 : 0);
+          '
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
